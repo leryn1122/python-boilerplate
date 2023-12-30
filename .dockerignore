@@ -1,0 +1,9 @@
+build
+deploy
+dist
+test
+
+*.spec
+README.md
+.editorconfig
+.gitignore
