@@ -1,0 +1,5 @@
+[MASTER]
+disable=line-too-long, missing-module-docstring, missing-function-docstring, no-else-return
+
+[TYPECHECK]
+ignore=multiple-imports
