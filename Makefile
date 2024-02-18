@@ -13,12 +13,14 @@ PYTHON_VERSION := 3.8.10
 PYTHON_MANAGER := pipenv
 PYTHON_BUILDER := pyinstaller
 PYTHON_LINTER := pylint
+PYTHON_TEST := pytest
+PYTHON_DEPS := $(shell $(PYTHON_MANAGER) run $(PYTHON) scripts/fetch_deps.py)
 
 # Main
 MAIN_ENTRY_FILE := src/main.py
 
 # Docker
-DOCKER := docker
+DOCKER ?= docker
 DOCKER_CONTEXT := .
 DOCKERFILE := ci/docker/Dockerfile
 REGISTRY := docker.io
@@ -39,11 +41,12 @@ venv: ## Enter local isolated virtual venv
 
 .PHONY: install
 install: ## Install dependencies
-	@ $(PYTHON_MANAGER) install
+	$(PYTHON_MANAGER) install
+	$(PYTHON_MANAGER) install -d
 
-.PHONY: check
-check: ## Check
-	@ $(PYTHON_MANAGER) shell "$(PYTHON_LINTER) *.py; exit"
+.PHONY: lint
+lint: ## Check
+	$(PYTHON_MANAGER) run $(PYTHON_LINTER) src/**.py
 
 .PHONY: format
 format: ## Format against code
@@ -53,7 +56,9 @@ format: ## Format against code
 clean: ## Cleatn target artifact
 	@ -rm -rf build
 	@ -rm -rf dist
-	@ -rm *.spec
+	@ -rm -rf .pytest_cache
+	@ -rm -rf __pycache__
+	@ -rm -f *.spec
 
 .PHONY: unittest
 unittest: ## Run all unit tests
@@ -67,15 +72,19 @@ test: ## Run all integrity tests
 
 .PHONY: build
 build: ## Run the target artifact
-	$(PYTHON_MANAGER) shell \
-	  "$(PYTHON_BUILDER) \
-		  --onefile $(MAIN_ENTRY_FILE) \
-			--clean \
-			; exit"
+	$(PYTHON_MANAGER) run $(PYTHON_BUILDER) \
+	  --name $(PROJECT) \
+	  --onefile $(MAIN_ENTRY_FILE) \
+	  --strip \
+	  --clean \
+	  --hidden-import $(PYTHON_DEPS)
 
 .PHONY: image
 image: ## Build the OCI image
-	DOCKER_BUILDKIT=1 $(DOCKER) build \
-	  -t $(FULL_IMAGE_NAME) \
-		-f $(DOCKERFILE) \
-		$(DOCKER_CONTEXT)
+	$(DOCKER) build \
+	  --tag $(NIGHTLY_IMAGE_NAME) \
+	  --file $(DOCKERFILE) \
+	  --build-arg MIRRORS_SOURCE=mirrors.tuna.tsinghua.edu.cn \
+	  --build-arg PYPI_SOURCE=pypi.tuna.tsinghua.edu.cn \
+	  $(DOCKER_CONTEXT)
+	$(DOCKER) tag $(NIGHTLY_IMAGE_NAME) $(FULL_IMAGE_NAME)
